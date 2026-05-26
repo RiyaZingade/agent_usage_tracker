@@ -24,13 +24,15 @@ export interface UsageStats {
 
 export function parseUsage(): UsageStats {
   const transcriptDir = path.join(os.homedir(), '.claude', 'transcripts');
-  const todayStr = todayDate();
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
 
   const dayStats = new Map<string, { messages: number; toolCalls: number }>();
   let totalMessages = 0;
   let totalToolCalls = 0;
   let totalSessions = 0;
-  let todaySessions = 0;
+  let recentMessages = 0;
+  let recentToolCalls = 0;
+  let recentSessions = 0;
 
   if (!fs.existsSync(transcriptDir)) {
     return buildEmpty();
@@ -48,7 +50,7 @@ export function parseUsage(): UsageStats {
     }
 
     totalSessions++;
-    let fileHasToday = false;
+    let fileHasRecent = false;
 
     for (const line of lines) {
       let event: Record<string, unknown>;
@@ -59,8 +61,10 @@ export function parseUsage(): UsageStats {
       }
 
       const ts = event['timestamp'] as string | undefined;
-      const date = ts ? ts.slice(0, 10) : null;
-      if (!date) { continue; }
+      if (!ts) { continue; }
+
+      const date = ts.slice(0, 10);
+      const isRecent = new Date(ts).getTime() >= cutoff;
 
       if (!dayStats.has(date)) {
         dayStats.set(date, { messages: 0, toolCalls: 0 });
@@ -70,23 +74,22 @@ export function parseUsage(): UsageStats {
       if (event['type'] === 'user') {
         day.messages++;
         totalMessages++;
-        if (date === todayStr) { fileHasToday = true; }
+        if (isRecent) { recentMessages++; fileHasRecent = true; }
       } else if (event['type'] === 'tool_use') {
         day.toolCalls++;
         totalToolCalls++;
+        if (isRecent) { recentToolCalls++; }
       }
     }
 
-    if (fileHasToday) { todaySessions++; }
+    if (fileHasRecent) { recentSessions++; }
   }
-
-  const todayDay = dayStats.get(todayStr) ?? { messages: 0, toolCalls: 0 };
 
   return {
     today: {
-      messages: todayDay.messages,
-      toolCalls: todayDay.toolCalls,
-      sessions: todaySessions,
+      messages: recentMessages,
+      toolCalls: recentToolCalls,
+      sessions: recentSessions,
     },
     last7Days: buildLast7Days(dayStats),
     allTime: {
@@ -117,6 +120,3 @@ function buildEmpty(): UsageStats {
   };
 }
 
-function todayDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}

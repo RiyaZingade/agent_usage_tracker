@@ -12,12 +12,36 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "claude-usage-tracker.helloWorld",
-        "title": "Hello World"
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claudeUsageTracker",
+          "title": "Claude Usage",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "claudeUsageTracker": [
+        {
+          "type": "webview",
+          "id": "claudeUsageTracker.sidebar",
+          "name": "Usage"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Usage Tracker",
+      "properties": {
+        "claude-usage-tracker.dailyBudget": {
+          "type": "number",
+          "default": 100,
+          "minimum": 1,
+          "description": "Your daily message + tool-call budget. The progress bar and icon mood are based on this number."
+        }
       }
-    ]
+    },
+    "commands": []
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

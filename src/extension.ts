@@ -1,26 +1,28 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import { SidebarProvider } from './sidebarProvider';
+import { parseUsage } from './usageParser';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+	const provider = new SidebarProvider(context.extensionUri);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, provider)
+	);
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "claude-usage-tracker" is now active!');
+	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	statusBar.command = 'claudeUsageTracker.sidebar.focus';
+	statusBar.show();
+	context.subscriptions.push(statusBar);
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('claude-usage-tracker.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from claude-usage-tracker!');
-	});
+	function updateStatusBar() {
+		const stats = parseUsage();
+		const total = stats.today.messages + stats.today.toolCalls;
+		statusBar.text = `$(robot) ${total}`;
+		statusBar.tooltip = `Today: ${stats.today.messages} messages · ${stats.today.toolCalls} tool calls · ${stats.today.sessions} sessions`;
+	}
 
-	context.subscriptions.push(disposable);
+	updateStatusBar();
+	const timer = setInterval(updateStatusBar, 60_000);
+	context.subscriptions.push({ dispose: () => clearInterval(timer) });
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}

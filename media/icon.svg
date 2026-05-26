@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" shape-rendering="crispEdges">
+  <!-- ears / antennae -->
+  <rect x="3" y="3" width="4" height="4" fill="#d97757"/>
+  <rect x="17" y="3" width="4" height="4" fill="#d97757"/>
+  <!-- body -->
+  <rect x="3" y="7" width="18" height="11" fill="#d97757"/>
+  <!-- eyes -->
+  <rect x="7"  y="10" width="3" height="3" fill="#1e1e1e"/>
+  <rect x="14" y="10" width="3" height="3" fill="#1e1e1e"/>
+  <!-- legs -->
+  <rect x="5"  y="18" width="4" height="4" fill="#d97757"/>
+  <rect x="15" y="18" width="4" height="4" fill="#d97757"/>
+</svg>
