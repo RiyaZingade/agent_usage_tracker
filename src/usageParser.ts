@@ -23,7 +23,7 @@ export interface UsageStats {
 }
 
 export function parseUsage(): UsageStats {
-  const transcriptDir = path.join(os.homedir(), '.claude', 'transcripts');
+  const claudeDir = path.join(os.homedir(), '.claude');
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
 
   const dayStats = new Map<string, { messages: number; toolCalls: number }>();
@@ -34,14 +34,35 @@ export function parseUsage(): UsageStats {
   let recentToolCalls = 0;
   let recentSessions = 0;
 
-  if (!fs.existsSync(transcriptDir)) {
+  if (!fs.existsSync(claudeDir)) {
     return buildEmpty();
   }
 
-  const files = fs.readdirSync(transcriptDir).filter(f => f.endsWith('.jsonl'));
+  // Collect all JSONL files: legacy transcripts + per-project sessions
+  const jsonlFiles: string[] = [];
 
-  for (const file of files) {
-    const filePath = path.join(transcriptDir, file);
+  const transcriptDir = path.join(claudeDir, 'transcripts');
+  if (fs.existsSync(transcriptDir)) {
+    for (const f of fs.readdirSync(transcriptDir)) {
+      if (f.endsWith('.jsonl')) { jsonlFiles.push(path.join(transcriptDir, f)); }
+    }
+  }
+
+  const projectsDir = path.join(claudeDir, 'projects');
+  if (fs.existsSync(projectsDir)) {
+    for (const proj of fs.readdirSync(projectsDir)) {
+      const projPath = path.join(projectsDir, proj);
+      try {
+        if (fs.statSync(projPath).isDirectory()) {
+          for (const f of fs.readdirSync(projPath)) {
+            if (f.endsWith('.jsonl')) { jsonlFiles.push(path.join(projPath, f)); }
+          }
+        }
+      } catch { continue; }
+    }
+  }
+
+  for (const filePath of jsonlFiles) {
     let lines: string[];
     try {
       lines = fs.readFileSync(filePath, 'utf8').trim().split('\n').filter(Boolean);
@@ -72,13 +93,35 @@ export function parseUsage(): UsageStats {
       const day = dayStats.get(date)!;
 
       if (event['type'] === 'user') {
+        // Skip internal injected messages (ide_opened_file, etc.)
+        const msg = event['message'] as Record<string, unknown> | undefined;
+        if (msg) {
+          const content = msg['content'];
+          if (Array.isArray(content) && content.every((c: Record<string, unknown>) =>
+            typeof c['text'] === 'string' && (c['text'] as string).startsWith('<')
+          )) { continue; }
+        }
         day.messages++;
         totalMessages++;
         if (isRecent) { recentMessages++; fileHasRecent = true; }
       } else if (event['type'] === 'tool_use') {
+        // Legacy format: tool_use is a top-level event
         day.toolCalls++;
         totalToolCalls++;
         if (isRecent) { recentToolCalls++; }
+      } else if (event['type'] === 'assistant') {
+        // New format: tool calls are embedded in assistant message content
+        const msg = event['message'] as Record<string, unknown> | undefined;
+        const content = msg?.['content'];
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if ((block as Record<string, unknown>)['type'] === 'tool_use') {
+              day.toolCalls++;
+              totalToolCalls++;
+              if (isRecent) { recentToolCalls++; }
+            }
+          }
+        }
       }
     }
 
